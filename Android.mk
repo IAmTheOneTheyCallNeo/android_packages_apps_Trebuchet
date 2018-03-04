@@ -29,7 +29,8 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     android-support-v7-appcompat \
     android-support-v7-recyclerview \
     android-support-v7-palette \
-    android-support-dynamic-animation
+    android-support-dynamic-animation \
+    org.lineageos.platform.internal
 
 LOCAL_SRC_FILES := \
     $(call all-java-files-under, src) \
@@ -60,6 +61,7 @@ LOCAL_SDK_VERSION := current
 LOCAL_MIN_SDK_VERSION := 23
 LOCAL_PACKAGE_NAME := Trebuchet
 LOCAL_PRIVILEGED_MODULE := true
+LOCAL_CERTIFICATE := platform
 LOCAL_OVERRIDES_PACKAGES := Home Launcher2 Launcher3
 
 LOCAL_AAPT_FLAGS += --rename-manifest-package org.lineageos.trebuchet
@@ -110,6 +112,7 @@ LOCAL_MIN_SDK_VERSION := 21
 LOCAL_PACKAGE_NAME := Launcher3Go
 LOCAL_PRIVILEGED_MODULE := true
 LOCAL_OVERRIDES_PACKAGES := Home Launcher2 Launcher3
+LOCAL_CERTIFICATE := platform
 
 LOCAL_FULL_LIBS_MANIFEST_FILES := \
     $(LOCAL_PATH)/AndroidManifest.xml \

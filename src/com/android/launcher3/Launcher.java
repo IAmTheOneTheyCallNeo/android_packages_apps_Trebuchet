@@ -33,6 +33,7 @@ import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentCallbacks2;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.DialogInterface;
@@ -141,6 +142,7 @@ import com.android.launcher3.util.PackageManagerHelper;
 import com.android.launcher3.util.PackageUserKey;
 import com.android.launcher3.util.PendingRequestArgs;
 import com.android.launcher3.util.RunnableWithId;
+import com.android.launcher3.util.CustomSettingsObserver;
 import com.android.launcher3.util.SystemUiController;
 import com.android.launcher3.util.TestingUtils;
 import com.android.launcher3.util.Themes;
@@ -164,6 +166,9 @@ import java.util.concurrent.Executor;
 
 import static com.android.launcher3.util.RunnableWithId.RUNNABLE_ID_BIND_APPS;
 import static com.android.launcher3.util.RunnableWithId.RUNNABLE_ID_BIND_WIDGETS;
+
+import lineageos.hardware.LiveDisplayManager;
+import lineageos.providers.LineageSettings;
 
 /**
  * Default launcher application.
@@ -372,6 +377,20 @@ public class Launcher extends BaseActivity
     private LauncherTab mLauncherTab;
     private boolean mFeedIntegrationEnabled;
 
+   // Theme
+    private SystemThemeObserver mSettingsObserver;
+
+    private class SystemThemeObserver extends CustomSettingsObserver.System {
+        public SystemThemeObserver(ContentResolver resolver) {
+            super(resolver);
+        }
+
+        @Override
+        public void onSettingChanged(int keySettingInt) {
+            onThemeChanged();
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         if (DEBUG_STRICT_MODE) {
@@ -400,7 +419,17 @@ public class Launcher extends BaseActivity
 
         WallpaperColorInfo wallpaperColorInfo = WallpaperColorInfo.getInstance(this);
         wallpaperColorInfo.setOnThemeChangeListener(this);
-        overrideTheme(wallpaperColorInfo.isDark(), wallpaperColorInfo.supportsDarkText());
+
+        mSettingsObserver = new SystemThemeObserver(this.getContentResolver());
+        mSettingsObserver.register(LineageSettings.System.BERRY_GLOBAL_STYLE);
+
+        // 0 = auto, 1 = time-based, 2 = light, 3 = dark
+        int globalStyleSetting = LineageSettings.System.getInt(this.getContentResolver(),
+                LineageSettings.System.BERRY_GLOBAL_STYLE, 0);
+
+        boolean forceDark = globalStyleSetting == 1 ? isLiveDisplayNightModeOn() : globalStyleSetting == 3 ? true : false;
+
+        overrideTheme(wallpaperColorInfo.isDark(), wallpaperColorInfo.supportsDarkText(), forceDark);
 
         super.onCreate(savedInstanceState);
 
@@ -522,13 +551,25 @@ public class Launcher extends BaseActivity
         tryAndUpdatePredictedApps();
     }
 
+    private boolean isLiveDisplayNightModeOn() {
+        // SystemUI is initialized before LiveDisplay, so the service may not
+        // be ready when this is called the first time
+        LiveDisplayManager manager = LiveDisplayManager.getInstance(this);
+        try {
+            return manager.isNightModeEnabled();
+        } catch (NullPointerException e) {
+            Log.w(TAG, e.getMessage());
+        }
+        return false;
+    }
+
     @Override
     public void onThemeChanged() {
         recreate();
     }
 
-    protected void overrideTheme(boolean isDark, boolean supportsDarkText) {
-        if (isDark) {
+    protected void overrideTheme(boolean isDark, boolean supportsDarkText, boolean forceDark) {
+        if (isDark || forceDark) {
             setTheme(R.style.LauncherThemeDark);
         } else if (supportsDarkText) {
             setTheme(R.style.LauncherThemeDarkText);
@@ -1915,6 +1956,7 @@ public class Launcher extends BaseActivity
                 .removeAccessibilityStateChangeListener(this);
 
         WallpaperColorInfo.getInstance(this).setOnThemeChangeListener(null);
+        mSettingsObserver.unregister();
 
         LauncherAnimUtils.onDestroyActivity();
 
